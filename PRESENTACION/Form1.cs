@@ -419,18 +419,18 @@ namespace PRESENTACION
                 {
                     connection.Open();
                     string query = @"
-                        SELECT 
-                            Id,
-                            Fecha as 'Fecha y Hora',
-                            TotalEntradas as 'Total Entradas',
-                            TotalSalidas as 'Total Salidas',
-                            TotalCaja as 'Total Caja',
-                            TotalEfectivoInicial as 'Efectivo Inicial',
-                            TotalEfectivoFinal as 'Efectivo Final',
-                            Diferencia as 'Diferencia'
-                        FROM CortesCaja 
-                        WHERE date(Fecha) = date(@Fecha)
-                        ORDER BY Fecha DESC";
+                SELECT 
+                    Id,
+                    Fecha as 'Fecha y Hora',
+                    TotalEntradas as 'Total Entradas',
+                    TotalSalidas as 'Total Salidas',
+                    TotalCaja as 'Total Caja',
+                    TotalEfectivoInicial as 'Efectivo Inicial',
+                    TotalEfectivoFinal as 'Efectivo Final',
+                    Diferencia as 'Diferencia'
+                FROM CortesCaja 
+                WHERE date(Fecha) = date(@Fecha)
+                ORDER BY Fecha DESC";
 
                     using (var adapter = new SQLiteDataAdapter(query, connection))
                     {
@@ -438,6 +438,12 @@ namespace PRESENTACION
                         DataTable dt = new DataTable();
                         adapter.Fill(dt);
                         dataGridViewHistorial.DataSource = dt;
+
+                        // Ocultar la columna Id si no quieres que sea visible
+                        if (dataGridViewHistorial.Columns.Contains("Id"))
+                        {
+                            dataGridViewHistorial.Columns["Id"].Visible = false;
+                        }
                     }
                 }
             }
@@ -452,12 +458,16 @@ namespace PRESENTACION
         {
             try
             {
-                if (!corteIniciado)
+                // Verificar si hay un corte seleccionado en el historial
+                if (dataGridViewHistorial.SelectedRows.Count == 0)
                 {
-                    MessageBox.Show("Debe iniciar y completar un corte antes de generar el reporte.", "Advertencia",
+                    MessageBox.Show("Por favor, seleccione un corte del historial para generar el reporte.", "Advertencia",
                                   MessageBoxButtons.OK, MessageBoxIcon.Warning);
                     return;
                 }
+
+                // Obtener el ID del corte seleccionado
+                int corteId = Convert.ToInt32(dataGridViewHistorial.SelectedRows[0].Cells["Id"].Value);
 
                 using (var saveDialog = new SaveFileDialog())
                 {
@@ -467,7 +477,7 @@ namespace PRESENTACION
 
                     if (saveDialog.ShowDialog() == DialogResult.OK)
                     {
-                        GenerarExcel(saveDialog.FileName);
+                        GenerarExcelDesdeHistorial(saveDialog.FileName, corteId);
                         MessageBox.Show("Reporte Excel generado exitosamente!", "Éxito",
                                       MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
@@ -479,6 +489,318 @@ namespace PRESENTACION
                               MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+
+        private void GenerarExcelDesdeHistorial(string filePath, int corteId)
+        {
+            using (var workbook = new XLWorkbook())
+            {
+                var worksheet = workbook.Worksheets.Add("Corte de Caja");
+
+                // Obtener datos del corte desde la base de datos
+                var datosCorte = ObtenerDatosCorte(corteId);
+                var desgloseInicial = ObtenerDesgloseEfectivo(corteId, "Inicial");
+                var desgloseFinal = ObtenerDesgloseEfectivo(corteId, "Final");
+                var conceptos = ObtenerConceptos(corteId);
+
+                // Título
+                worksheet.Cell("A1").Value = "REPORTE DE CORTE DE CAJA";
+                worksheet.Cell("A1").Style.Font.Bold = true;
+                worksheet.Cell("A1").Style.Font.FontSize = 16;
+                worksheet.Range("A1:G1").Merge();
+
+                worksheet.Cell("A2").Value = $"Fecha: {datosCorte.Fecha:dd/MM/yyyy HH:mm}";
+                worksheet.Cell("A2").Style.Font.Bold = true;
+
+                // ===== COLUMNA IZQUIERDA: DESGLOSE INICIAL =====
+                worksheet.Cell("A4").Value = "EFECTIVO INICIAL";
+                worksheet.Cell("A4").Style.Font.Bold = true;
+                worksheet.Cell("A4").Style.Fill.BackgroundColor = XLColor.LightBlue;
+
+                int row = 5;
+                worksheet.Cell($"A{row}").Value = "DENOMINACIÓN";
+                worksheet.Cell($"B{row}").Value = "CANTIDAD";
+                worksheet.Cell($"C{row}").Value = "SUBTOTAL";
+                var headerInicial = worksheet.Range($"A{row}:C{row}");
+                headerInicial.Style.Font.Bold = true;
+                headerInicial.Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                row++;
+
+                decimal totalInicial = 0;
+                foreach (var desglose in desgloseInicial.OrderByDescending(x => x.Denominacion))
+                {
+                    if (desglose.Cantidad > 0)
+                    {
+                        worksheet.Cell($"A{row}").Value = $"${desglose.Denominacion:N2}";
+                        worksheet.Cell($"B{row}").Value = desglose.Cantidad;
+                        worksheet.Cell($"C{row}").Value = desglose.Subtotal;
+                        totalInicial += (decimal)desglose.Subtotal;
+                        row++;
+                    }
+                }
+
+                worksheet.Cell($"A{row}").Value = "TOTAL INICIAL:";
+                worksheet.Cell($"A{row}").Style.Font.Bold = true;
+                worksheet.Cell($"C{row}").Value = totalInicial;
+                worksheet.Cell($"C{row}").Style.Font.Bold = true;
+
+                // ===== COLUMNA CENTRAL: MOVIMIENTOS =====
+                int centerCol = 4; // Columna D
+                int centerRow = 4;
+
+                worksheet.Cell(centerRow, centerCol).Value = "MOVIMIENTOS DE CAJA";
+                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(centerRow, centerCol).Style.Fill.BackgroundColor = XLColor.LightGreen;
+                worksheet.Range(centerRow, centerCol, centerRow, centerCol + 2).Merge();
+
+                centerRow++;
+                worksheet.Cell(centerRow, centerCol).Value = "DESCRIPCIÓN";
+                worksheet.Cell(centerRow, centerCol + 1).Value = "TIPO";
+                worksheet.Cell(centerRow, centerCol + 2).Value = "VALOR";
+                var headerMovimientos = worksheet.Range(centerRow, centerCol, centerRow, centerCol + 2);
+                headerMovimientos.Style.Font.Bold = true;
+                headerMovimientos.Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                centerRow++;
+
+                decimal totalEntradas = 0;
+                decimal totalSalidas = 0;
+
+                if (conceptos.Count > 0)
+                {
+                    foreach (var concepto in conceptos)
+                    {
+                        worksheet.Cell(centerRow, centerCol).Value = concepto.Descripcion;
+                        worksheet.Cell(centerRow, centerCol + 1).Value = concepto.Tipo;
+                        worksheet.Cell(centerRow, centerCol + 2).Value = concepto.Valor;
+
+                        if (concepto.Tipo == "Entrada")
+                            totalEntradas += (decimal)concepto.Valor;
+                        else
+                            totalSalidas += (decimal)concepto.Valor;
+
+                        centerRow++;
+                    }
+                }
+                else
+                {
+                    worksheet.Cell(centerRow, centerCol).Value = "No hay movimientos registrados";
+                    worksheet.Range(centerRow, centerCol, centerRow, centerCol + 2).Merge();
+                    centerRow++;
+                }
+
+                // Totales de movimientos
+                decimal totalCaja = totalEntradas - totalSalidas;
+
+                worksheet.Cell(centerRow, centerCol).Value = "TOTAL ENTRADAS:";
+                worksheet.Cell(centerRow, centerCol + 1).Value = totalEntradas;
+                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(centerRow, centerCol + 1).Style.Font.Bold = true;
+                centerRow++;
+
+                worksheet.Cell(centerRow, centerCol).Value = "TOTAL SALIDAS:";
+                worksheet.Cell(centerRow, centerCol + 1).Value = totalSalidas;
+                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(centerRow, centerCol + 1).Style.Font.Bold = true;
+                centerRow++;
+
+                worksheet.Cell(centerRow, centerCol).Value = "TOTAL EN CAJA:";
+                worksheet.Cell(centerRow, centerCol + 1).Value = totalCaja;
+                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(centerRow, centerCol + 1).Style.Font.Bold = true;
+                centerRow++;
+
+                // ===== PARTE INFERIOR CENTRAL: DESGLOSE FINAL Y RESUMEN =====
+                int bottomRow = Math.Max(row, centerRow) + 2;
+
+                // Desglose Final
+                worksheet.Cell(bottomRow, centerCol).Value = "EFECTIVO FINAL";
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(bottomRow, centerCol).Style.Fill.BackgroundColor = XLColor.LightYellow;
+                worksheet.Range(bottomRow, centerCol, bottomRow, centerCol + 2).Merge();
+
+                bottomRow++;
+                worksheet.Cell(bottomRow, centerCol).Value = "DENOMINACIÓN";
+                worksheet.Cell(bottomRow, centerCol + 1).Value = "CANTIDAD";
+                worksheet.Cell(bottomRow, centerCol + 2).Value = "SUBTOTAL";
+                var headerFinal = worksheet.Range(bottomRow, centerCol, bottomRow, centerCol + 2);
+                headerFinal.Style.Font.Bold = true;
+                headerFinal.Style.Fill.BackgroundColor = XLColor.LightGray;
+
+                bottomRow++;
+
+                decimal totalFinal = 0;
+                foreach (var desglose in desgloseFinal.OrderByDescending(x => x.Denominacion))
+                {
+                    if (desglose.Cantidad > 0)
+                    {
+                        worksheet.Cell(bottomRow, centerCol).Value = $"${desglose.Denominacion:N2}";
+                        worksheet.Cell(bottomRow, centerCol + 1).Value = desglose.Cantidad;
+                        worksheet.Cell(bottomRow, centerCol + 2).Value = desglose.Subtotal;
+                        totalFinal += (decimal)desglose.Subtotal;
+                        bottomRow++;
+                    }
+                }
+
+                worksheet.Cell(bottomRow, centerCol).Value = "TOTAL FINAL:";
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(bottomRow, centerCol + 2).Value = totalFinal;
+                worksheet.Cell(bottomRow, centerCol + 2).Style.Font.Bold = true;
+
+                bottomRow += 2;
+
+                // ===== RESUMEN FINAL =====
+                worksheet.Cell(bottomRow, centerCol).Value = "RESUMEN FINAL";
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(bottomRow, centerCol).Style.Font.FontSize = 12;
+                worksheet.Range(bottomRow, centerCol, bottomRow, centerCol + 1).Merge();
+
+                bottomRow++;
+                worksheet.Cell(bottomRow, centerCol).Value = "Efectivo Inicial:";
+                worksheet.Cell(bottomRow, centerCol + 1).Value = totalInicial;
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+
+                bottomRow++;
+                worksheet.Cell(bottomRow, centerCol).Value = "Total en Caja:";
+                worksheet.Cell(bottomRow, centerCol + 1).Value = totalCaja;
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+
+                bottomRow++;
+                worksheet.Cell(bottomRow, centerCol).Value = "Efectivo Esperado:";
+                worksheet.Cell(bottomRow, centerCol + 1).Value = totalInicial + totalCaja;
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+
+                bottomRow++;
+                worksheet.Cell(bottomRow, centerCol).Value = "Efectivo Final:";
+                worksheet.Cell(bottomRow, centerCol + 1).Value = totalFinal;
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+
+                bottomRow++;
+                decimal diferencia = totalFinal - (totalInicial + totalCaja);
+                worksheet.Cell(bottomRow, centerCol).Value = "DIFERENCIA:";
+                worksheet.Cell(bottomRow, centerCol + 1).Value = diferencia;
+                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(bottomRow, centerCol + 1).Style.Font.Bold = true;
+                worksheet.Cell(bottomRow, centerCol + 1).Style.Font.FontColor =
+                    diferencia == 0 ? XLColor.Green : XLColor.Red;
+
+                // Formato de moneda para todas las celdas numéricas
+                var numberCells = worksheet.RangeUsed().CellsUsed()
+                    .Where(c => c.Value.IsNumber);
+                foreach (var cell in numberCells)
+                {
+                    cell.Style.NumberFormat.Format = "$#,##0.00";
+                }
+
+                // Autoajustar columnas
+                worksheet.Columns().AdjustToContents();
+
+                // Bordes para mejor presentación
+                var usedRange = worksheet.RangeUsed();
+                if (usedRange != null)
+                {
+                    usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
+                    usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                }
+
+                workbook.SaveAs(filePath);
+            }
+        }
+
+        // Métodos auxiliares para obtener datos de la base de datos
+        private CorteData ObtenerDatosCorte(int corteId)
+        {
+            using (var connection = DatabaseHelper.GetConnection())
+            {
+                connection.Open();
+                string query = "SELECT * FROM CortesCaja WHERE Id = @CorteId";
+
+                using (var command = new SQLiteCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@CorteId", corteId);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        if (reader.Read())
+                        {
+                            return new CorteData
+                            {
+                                Id = reader.GetInt32(reader.GetOrdinal("Id")),
+                                Fecha = reader.GetDateTime(reader.GetOrdinal("Fecha")),
+                                TotalEntradas = Convert.ToDecimal(reader["TotalEntradas"]),
+                                TotalSalidas = Convert.ToDecimal(reader["TotalSalidas"]),
+                                TotalCaja = Convert.ToDecimal(reader["TotalCaja"]),
+                                TotalEfectivoInicial = Convert.ToDecimal(reader["TotalEfectivoInicial"]),
+                                TotalEfectivoFinal = Convert.ToDecimal(reader["TotalEfectivoFinal"]),
+                                Diferencia = Convert.ToDecimal(reader["Diferencia"])
+                            };
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
+        private List<DesgloseData> ObtenerDesgloseEfectivo(int corteId, string tipo)
+        {
+            var desglose = new List<DesgloseData>();
+
+            using (var connection = DatabaseHelper.GetConnection())
+            {
+                connection.Open();
+                string query = "SELECT * FROM DesgloseEfectivo WHERE CorteId = @CorteId AND Tipo = @Tipo";
+
+                using (var command = new SQLiteCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@CorteId", corteId);
+                    command.Parameters.AddWithValue("@Tipo", tipo);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            desglose.Add(new DesgloseData
+                            {
+                                Denominacion = Convert.ToDouble(reader["Denominacion"]),
+                                Cantidad = Convert.ToInt32(reader["Cantidad"]),
+                                Subtotal = Convert.ToDouble(reader["Subtotal"])
+                            });
+                        }
+                    }
+                }
+            }
+            return desglose;
+        }
+        private List<ConceptoData> ObtenerConceptos(int corteId)
+        {
+            var conceptos = new List<ConceptoData>();
+
+            using (var connection = DatabaseHelper.GetConnection())
+            {
+                connection.Open();
+                string query = "SELECT * FROM Conceptos WHERE CorteId = @CorteId";
+
+                using (var command = new SQLiteCommand(query, connection))
+                {
+                    command.Parameters.AddWithValue("@CorteId", corteId);
+
+                    using (var reader = command.ExecuteReader())
+                    {
+                        while (reader.Read())
+                        {
+                            conceptos.Add(new ConceptoData
+                            {
+                                Descripcion = reader["Descripcion"].ToString(),
+                                Tipo = reader["Tipo"].ToString(),
+                                Valor = Convert.ToDecimal(reader["Valor"])
+                            });
+                        }
+                    }
+                }
+            }
+            return conceptos;
+        }
+
 
         private void GenerarExcel(string filePath)
         {
