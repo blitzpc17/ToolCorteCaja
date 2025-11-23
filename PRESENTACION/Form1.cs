@@ -490,6 +490,10 @@ namespace PRESENTACION
             }
         }
 
+        // Reemplaza esta línea problemática:
+        // int lastRow = worksheet.LastRowUsed().RowNumber + 2;
+
+        // Con esta corrección:
         private void GenerarExcelDesdeHistorial(string filePath, int corteId)
         {
             using (var workbook = new XLWorkbook())
@@ -502,212 +506,374 @@ namespace PRESENTACION
                 var desgloseFinal = ObtenerDesgloseEfectivo(corteId, "Final");
                 var conceptos = ObtenerConceptos(corteId);
 
-                // Título
-                worksheet.Cell("A1").Value = "REPORTE DE CORTE DE CAJA";
-                worksheet.Cell("A1").Style.Font.Bold = true;
-                worksheet.Cell("A1").Style.Font.FontSize = 16;
-                worksheet.Range("A1:G1").Merge();
+                // ===== ENCABEZADO PRINCIPAL =====
+                var headerRange = worksheet.Range("A1:G3");
+                headerRange.Merge();
+                headerRange.Value = "REPORTE DE CORTE DE CAJA";
+                headerRange.Style.Font.Bold = true;
+                headerRange.Style.Font.FontSize = 18;
+                headerRange.Style.Font.FontColor = XLColor.White;
+                headerRange.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerRange.Style.Alignment.Vertical = XLAlignmentVerticalValues.Center;
+                headerRange.Style.Fill.BackgroundColor = XLColor.FromArgb(41, 128, 185);
 
-                worksheet.Cell("A2").Value = $"Fecha: {datosCorte.Fecha:dd/MM/yyyy HH:mm}";
-                worksheet.Cell("A2").Style.Font.Bold = true;
-
-                // ===== COLUMNA IZQUIERDA: DESGLOSE INICIAL =====
-                worksheet.Cell("A4").Value = "EFECTIVO INICIAL";
+                // Información de fecha y ID
+                worksheet.Cell("A4").Value = $"Fecha del Corte: {datosCorte.Fecha:dd/MM/yyyy HH:mm}";
                 worksheet.Cell("A4").Style.Font.Bold = true;
-                worksheet.Cell("A4").Style.Fill.BackgroundColor = XLColor.LightBlue;
+                worksheet.Cell("A4").Style.Font.FontColor = XLColor.DarkGray;
 
-                int row = 5;
-                worksheet.Cell($"A{row}").Value = "DENOMINACIÓN";
-                worksheet.Cell($"B{row}").Value = "CANTIDAD";
-                worksheet.Cell($"C{row}").Value = "SUBTOTAL";
-                var headerInicial = worksheet.Range($"A{row}:C{row}");
+                worksheet.Cell("E4").Value = $"ID de Corte: #{datosCorte.Id}";
+                worksheet.Cell("E4").Style.Font.Bold = true;
+                worksheet.Cell("E4").Style.Font.FontColor = XLColor.DarkGray;
+                worksheet.Cell("E4").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+                // ===== SECCIÓN IZQUIERDA: EFECTIVO INICIAL =====
+                int leftStartRow = 6;
+
+                // Título de sección
+                var tituloInicial = worksheet.Range($"A{leftStartRow}:C{leftStartRow}");
+                tituloInicial.Merge();
+                tituloInicial.Value = "EFECTIVO INICIAL";
+                tituloInicial.Style.Font.Bold = true;
+                tituloInicial.Style.Font.FontSize = 12;
+                tituloInicial.Style.Font.FontColor = XLColor.White;
+                tituloInicial.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                tituloInicial.Style.Fill.BackgroundColor = XLColor.FromArgb(52, 152, 219);
+
+                leftStartRow++;
+
+                // Encabezados de tabla
+                worksheet.Cell($"A{leftStartRow}").Value = "DENOMINACIÓN";
+                worksheet.Cell($"B{leftStartRow}").Value = "CANTIDAD";
+                worksheet.Cell($"C{leftStartRow}").Value = "SUBTOTAL";
+
+                var headerInicial = worksheet.Range($"A{leftStartRow}:C{leftStartRow}");
                 headerInicial.Style.Font.Bold = true;
-                headerInicial.Style.Fill.BackgroundColor = XLColor.LightGray;
+                headerInicial.Style.Font.FontColor = XLColor.White;
+                headerInicial.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerInicial.Style.Fill.BackgroundColor = XLColor.FromArgb(149, 165, 166);
 
-                row++;
+                leftStartRow++;
 
                 decimal totalInicial = 0;
+                bool hasInicialData = false;
+
                 foreach (var desglose in desgloseInicial.OrderByDescending(x => x.Denominacion))
                 {
                     if (desglose.Cantidad > 0)
                     {
-                        worksheet.Cell($"A{row}").Value = $"${desglose.Denominacion:N2}";
-                        worksheet.Cell($"B{row}").Value = desglose.Cantidad;
-                        worksheet.Cell($"C{row}").Value = desglose.Subtotal;
+                        worksheet.Cell($"A{leftStartRow}").Value = $"${desglose.Denominacion:N2}";
+                        worksheet.Cell($"B{leftStartRow}").Value = desglose.Cantidad;
+                        worksheet.Cell($"C{leftStartRow}").Value = desglose.Subtotal;
                         totalInicial += (decimal)desglose.Subtotal;
-                        row++;
+
+                        // Alternar colores de fila para mejor legibilidad
+                        if (leftStartRow % 2 == 0)
+                            worksheet.Range($"A{leftStartRow}:C{leftStartRow}").Style.Fill.BackgroundColor = XLColor.FromArgb(236, 240, 241);
+
+                        leftStartRow++;
+                        hasInicialData = true;
                     }
                 }
 
-                worksheet.Cell($"A{row}").Value = "TOTAL INICIAL:";
-                worksheet.Cell($"A{row}").Style.Font.Bold = true;
-                worksheet.Cell($"C{row}").Value = totalInicial;
-                worksheet.Cell($"C{row}").Style.Font.Bold = true;
+                if (!hasInicialData)
+                {
+                    worksheet.Cell($"A{leftStartRow}").Value = "Sin efectivo inicial";
+                    worksheet.Range($"A{leftStartRow}:C{leftStartRow}").Merge();
+                    worksheet.Cell($"A{leftStartRow}").Style.Font.Italic = true;
+                    worksheet.Cell($"A{leftStartRow}").Style.Font.FontColor = XLColor.Gray;
+                    leftStartRow++;
+                }
 
-                // ===== COLUMNA CENTRAL: MOVIMIENTOS =====
+                // Total inicial
+                var totalInicialRange = worksheet.Range($"A{leftStartRow}:C{leftStartRow}");
+                totalInicialRange.Style.Font.Bold = true;
+                totalInicialRange.Style.Font.FontSize = 11;
+                totalInicialRange.Style.Fill.BackgroundColor = XLColor.FromArgb(46, 204, 113);
+                totalInicialRange.Style.Font.FontColor = XLColor.White;
+
+                worksheet.Cell($"A{leftStartRow}").Value = "TOTAL INICIAL:";
+                worksheet.Cell($"C{leftStartRow}").Value = totalInicial;
+
+                // ===== SECCIÓN CENTRAL: MOVIMIENTOS =====
                 int centerCol = 4; // Columna D
-                int centerRow = 4;
+                int centerStartRow = 6;
 
-                worksheet.Cell(centerRow, centerCol).Value = "MOVIMIENTOS DE CAJA";
-                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(centerRow, centerCol).Style.Fill.BackgroundColor = XLColor.LightGreen;
-                worksheet.Range(centerRow, centerCol, centerRow, centerCol + 2).Merge();
+                // Título de sección
+                var tituloMovimientos = worksheet.Range(centerStartRow, centerCol, centerStartRow, centerCol + 2);
+                tituloMovimientos.Merge();
+                tituloMovimientos.Value = "MOVIMIENTOS DE CAJA";
+                tituloMovimientos.Style.Font.Bold = true;
+                tituloMovimientos.Style.Font.FontSize = 12;
+                tituloMovimientos.Style.Font.FontColor = XLColor.White;
+                tituloMovimientos.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                tituloMovimientos.Style.Fill.BackgroundColor = XLColor.FromArgb(155, 89, 182);
 
-                centerRow++;
-                worksheet.Cell(centerRow, centerCol).Value = "DESCRIPCIÓN";
-                worksheet.Cell(centerRow, centerCol + 1).Value = "TIPO";
-                worksheet.Cell(centerRow, centerCol + 2).Value = "VALOR";
-                var headerMovimientos = worksheet.Range(centerRow, centerCol, centerRow, centerCol + 2);
+                centerStartRow++;
+
+                // Encabezados de tabla
+                worksheet.Cell(centerStartRow, centerCol).Value = "DESCRIPCIÓN";
+                worksheet.Cell(centerStartRow, centerCol + 1).Value = "TIPO";
+                worksheet.Cell(centerStartRow, centerCol + 2).Value = "VALOR";
+
+                var headerMovimientos = worksheet.Range(centerStartRow, centerCol, centerStartRow, centerCol + 2);
                 headerMovimientos.Style.Font.Bold = true;
-                headerMovimientos.Style.Fill.BackgroundColor = XLColor.LightGray;
+                headerMovimientos.Style.Font.FontColor = XLColor.White;
+                headerMovimientos.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerMovimientos.Style.Fill.BackgroundColor = XLColor.FromArgb(149, 165, 166);
 
-                centerRow++;
+                centerStartRow++;
 
                 decimal totalEntradas = 0;
                 decimal totalSalidas = 0;
+                bool hasMovimientos = false;
 
                 if (conceptos.Count > 0)
                 {
                     foreach (var concepto in conceptos)
                     {
-                        worksheet.Cell(centerRow, centerCol).Value = concepto.Descripcion;
-                        worksheet.Cell(centerRow, centerCol + 1).Value = concepto.Tipo;
-                        worksheet.Cell(centerRow, centerCol + 2).Value = concepto.Valor;
+                        worksheet.Cell(centerStartRow, centerCol).Value = concepto.Descripcion;
+                        worksheet.Cell(centerStartRow, centerCol + 1).Value = concepto.Tipo;
+                        worksheet.Cell(centerStartRow, centerCol + 2).Value = concepto.Valor;
 
+                        // Color según el tipo
                         if (concepto.Tipo == "Entrada")
+                        {
+                            worksheet.Cell(centerStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(46, 204, 113);
                             totalEntradas += (decimal)concepto.Valor;
+                        }
                         else
+                        {
+                            worksheet.Cell(centerStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(231, 76, 60);
                             totalSalidas += (decimal)concepto.Valor;
+                        }
 
-                        centerRow++;
+                        // Alternar colores de fila
+                        if (centerStartRow % 2 == 0)
+                            worksheet.Range(centerStartRow, centerCol, centerStartRow, centerCol + 2).Style.Fill.BackgroundColor = XLColor.FromArgb(236, 240, 241);
+
+                        centerStartRow++;
+                        hasMovimientos = true;
                     }
                 }
                 else
                 {
-                    worksheet.Cell(centerRow, centerCol).Value = "No hay movimientos registrados";
-                    worksheet.Range(centerRow, centerCol, centerRow, centerCol + 2).Merge();
-                    centerRow++;
+                    worksheet.Cell(centerStartRow, centerCol).Value = "No hay movimientos registrados";
+                    worksheet.Range(centerStartRow, centerCol, centerStartRow, centerCol + 2).Merge();
+                    worksheet.Cell(centerStartRow, centerCol).Style.Font.Italic = true;
+                    worksheet.Cell(centerStartRow, centerCol).Style.Font.FontColor = XLColor.Gray;
+                    centerStartRow++;
                 }
 
-                // Totales de movimientos
                 decimal totalCaja = totalEntradas - totalSalidas;
 
-                worksheet.Cell(centerRow, centerCol).Value = "TOTAL ENTRADAS:";
-                worksheet.Cell(centerRow, centerCol + 1).Value = totalEntradas;
-                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(centerRow, centerCol + 1).Style.Font.Bold = true;
-                centerRow++;
+                // Resumen de movimientos
+                int summaryStartRow = centerStartRow + 1;
 
-                worksheet.Cell(centerRow, centerCol).Value = "TOTAL SALIDAS:";
-                worksheet.Cell(centerRow, centerCol + 1).Value = totalSalidas;
-                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(centerRow, centerCol + 1).Style.Font.Bold = true;
-                centerRow++;
+                worksheet.Cell(summaryStartRow, centerCol).Value = "RESUMEN DE MOVIMIENTOS:";
+                worksheet.Cell(summaryStartRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol).Style.Font.FontSize = 11;
+                summaryStartRow++;
 
-                worksheet.Cell(centerRow, centerCol).Value = "TOTAL EN CAJA:";
-                worksheet.Cell(centerRow, centerCol + 1).Value = totalCaja;
-                worksheet.Cell(centerRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(centerRow, centerCol + 1).Style.Font.Bold = true;
-                centerRow++;
+                worksheet.Cell(summaryStartRow, centerCol).Value = "Total Entradas:";
+                worksheet.Cell(summaryStartRow, centerCol + 1).Value = totalEntradas;
+                worksheet.Cell(summaryStartRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol + 1).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(46, 204, 113);
+                summaryStartRow++;
 
-                // ===== PARTE INFERIOR CENTRAL: DESGLOSE FINAL Y RESUMEN =====
-                int bottomRow = Math.Max(row, centerRow) + 2;
+                worksheet.Cell(summaryStartRow, centerCol).Value = "Total Salidas:";
+                worksheet.Cell(summaryStartRow, centerCol + 1).Value = totalSalidas;
+                worksheet.Cell(summaryStartRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol + 1).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(231, 76, 60);
+                summaryStartRow++;
 
-                // Desglose Final
-                worksheet.Cell(bottomRow, centerCol).Value = "EFECTIVO FINAL";
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(bottomRow, centerCol).Style.Fill.BackgroundColor = XLColor.LightYellow;
-                worksheet.Range(bottomRow, centerCol, bottomRow, centerCol + 2).Merge();
+                worksheet.Cell(summaryStartRow, centerCol).Value = "Total en Caja:";
+                worksheet.Cell(summaryStartRow, centerCol + 1).Value = totalCaja;
+                worksheet.Cell(summaryStartRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol + 1).Style.Font.Bold = true;
+                worksheet.Cell(summaryStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(41, 128, 185);
+                summaryStartRow++;
 
-                bottomRow++;
-                worksheet.Cell(bottomRow, centerCol).Value = "DENOMINACIÓN";
-                worksheet.Cell(bottomRow, centerCol + 1).Value = "CANTIDAD";
-                worksheet.Cell(bottomRow, centerCol + 2).Value = "SUBTOTAL";
-                var headerFinal = worksheet.Range(bottomRow, centerCol, bottomRow, centerCol + 2);
+                // ===== SECCIÓN INFERIOR CENTRAL: EFECTIVO FINAL =====
+                int finalStartRow = summaryStartRow + 2;
+
+                // Título de sección
+                var tituloFinal = worksheet.Range(finalStartRow, centerCol, finalStartRow, centerCol + 2);
+                tituloFinal.Merge();
+                tituloFinal.Value = "EFECTIVO FINAL";
+                tituloFinal.Style.Font.Bold = true;
+                tituloFinal.Style.Font.FontSize = 12;
+                tituloFinal.Style.Font.FontColor = XLColor.White;
+                tituloFinal.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                tituloFinal.Style.Fill.BackgroundColor = XLColor.FromArgb(230, 126, 34);
+
+                finalStartRow++;
+
+                // Encabezados de tabla
+                worksheet.Cell(finalStartRow, centerCol).Value = "DENOMINACIÓN";
+                worksheet.Cell(finalStartRow, centerCol + 1).Value = "CANTIDAD";
+                worksheet.Cell(finalStartRow, centerCol + 2).Value = "SUBTOTAL";
+
+                var headerFinal = worksheet.Range(finalStartRow, centerCol, finalStartRow, centerCol + 2);
                 headerFinal.Style.Font.Bold = true;
-                headerFinal.Style.Fill.BackgroundColor = XLColor.LightGray;
+                headerFinal.Style.Font.FontColor = XLColor.White;
+                headerFinal.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                headerFinal.Style.Fill.BackgroundColor = XLColor.FromArgb(149, 165, 166);
 
-                bottomRow++;
+                finalStartRow++;
 
                 decimal totalFinal = 0;
+                bool hasFinalData = false;
+
                 foreach (var desglose in desgloseFinal.OrderByDescending(x => x.Denominacion))
                 {
                     if (desglose.Cantidad > 0)
                     {
-                        worksheet.Cell(bottomRow, centerCol).Value = $"${desglose.Denominacion:N2}";
-                        worksheet.Cell(bottomRow, centerCol + 1).Value = desglose.Cantidad;
-                        worksheet.Cell(bottomRow, centerCol + 2).Value = desglose.Subtotal;
+                        worksheet.Cell(finalStartRow, centerCol).Value = $"${desglose.Denominacion:N2}";
+                        worksheet.Cell(finalStartRow, centerCol + 1).Value = desglose.Cantidad;
+                        worksheet.Cell(finalStartRow, centerCol + 2).Value = desglose.Subtotal;
                         totalFinal += (decimal)desglose.Subtotal;
-                        bottomRow++;
+
+                        // Alternar colores de fila
+                        if (finalStartRow % 2 == 0)
+                            worksheet.Range(finalStartRow, centerCol, finalStartRow, centerCol + 2).Style.Fill.BackgroundColor = XLColor.FromArgb(236, 240, 241);
+
+                        finalStartRow++;
+                        hasFinalData = true;
                     }
                 }
 
-                worksheet.Cell(bottomRow, centerCol).Value = "TOTAL FINAL:";
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(bottomRow, centerCol + 2).Value = totalFinal;
-                worksheet.Cell(bottomRow, centerCol + 2).Style.Font.Bold = true;
-
-                bottomRow += 2;
-
-                // ===== RESUMEN FINAL =====
-                worksheet.Cell(bottomRow, centerCol).Value = "RESUMEN FINAL";
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(bottomRow, centerCol).Style.Font.FontSize = 12;
-                worksheet.Range(bottomRow, centerCol, bottomRow, centerCol + 1).Merge();
-
-                bottomRow++;
-                worksheet.Cell(bottomRow, centerCol).Value = "Efectivo Inicial:";
-                worksheet.Cell(bottomRow, centerCol + 1).Value = totalInicial;
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-
-                bottomRow++;
-                worksheet.Cell(bottomRow, centerCol).Value = "Total en Caja:";
-                worksheet.Cell(bottomRow, centerCol + 1).Value = totalCaja;
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-
-                bottomRow++;
-                worksheet.Cell(bottomRow, centerCol).Value = "Efectivo Esperado:";
-                worksheet.Cell(bottomRow, centerCol + 1).Value = totalInicial + totalCaja;
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-
-                bottomRow++;
-                worksheet.Cell(bottomRow, centerCol).Value = "Efectivo Final:";
-                worksheet.Cell(bottomRow, centerCol + 1).Value = totalFinal;
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-
-                bottomRow++;
-                decimal diferencia = totalFinal - (totalInicial + totalCaja);
-                worksheet.Cell(bottomRow, centerCol).Value = "DIFERENCIA:";
-                worksheet.Cell(bottomRow, centerCol + 1).Value = diferencia;
-                worksheet.Cell(bottomRow, centerCol).Style.Font.Bold = true;
-                worksheet.Cell(bottomRow, centerCol + 1).Style.Font.Bold = true;
-                worksheet.Cell(bottomRow, centerCol + 1).Style.Font.FontColor =
-                    diferencia == 0 ? XLColor.Green : XLColor.Red;
-
-                // Formato de moneda para todas las celdas numéricas
-                var numberCells = worksheet.RangeUsed().CellsUsed()
-                    .Where(c => c.Value.IsNumber);
-                foreach (var cell in numberCells)
+                if (!hasFinalData)
                 {
-                    cell.Style.NumberFormat.Format = "$#,##0.00";
+                    worksheet.Cell(finalStartRow, centerCol).Value = "Sin efectivo final";
+                    worksheet.Range(finalStartRow, centerCol, finalStartRow, centerCol + 2).Merge();
+                    worksheet.Cell(finalStartRow, centerCol).Style.Font.Italic = true;
+                    worksheet.Cell(finalStartRow, centerCol).Style.Font.FontColor = XLColor.Gray;
+                    finalStartRow++;
                 }
 
-                // Autoajustar columnas
-                worksheet.Columns().AdjustToContents();
+                // Total final
+                var totalFinalRange = worksheet.Range(finalStartRow, centerCol, finalStartRow, centerCol + 2);
+                totalFinalRange.Style.Font.Bold = true;
+                totalFinalRange.Style.Font.FontSize = 11;
+                totalFinalRange.Style.Fill.BackgroundColor = XLColor.FromArgb(46, 204, 113);
+                totalFinalRange.Style.Font.FontColor = XLColor.White;
 
-                // Bordes para mejor presentación
-                var usedRange = worksheet.RangeUsed();
-                if (usedRange != null)
+                worksheet.Cell(finalStartRow, centerCol).Value = "TOTAL FINAL:";
+                worksheet.Cell(finalStartRow, centerCol + 2).Value = totalFinal;
+
+                // ===== RESUMEN FINAL =====
+                int resumenStartRow = finalStartRow + 3;
+
+                // Título del resumen
+                var tituloResumen = worksheet.Range(resumenStartRow, centerCol, resumenStartRow, centerCol + 2);
+                tituloResumen.Merge();
+                tituloResumen.Value = "RESUMEN FINAL";
+                tituloResumen.Style.Font.Bold = true;
+                tituloResumen.Style.Font.FontSize = 14;
+                tituloResumen.Style.Font.FontColor = XLColor.White;
+                tituloResumen.Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                tituloResumen.Style.Fill.BackgroundColor = XLColor.FromArgb(41, 128, 185);
+
+                resumenStartRow++;
+
+                // Cuadro de resumen
+                var cuadroResumen = worksheet.Range(resumenStartRow, centerCol, resumenStartRow + 5, centerCol + 1);
+                cuadroResumen.Style.Border.OutsideBorder = XLBorderStyleValues.Thick;
+                cuadroResumen.Style.Border.OutsideBorderColor = XLColor.FromArgb(41, 128, 185);
+                cuadroResumen.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                cuadroResumen.Style.Border.InsideBorderColor = XLColor.LightGray;
+
+                worksheet.Cell(resumenStartRow, centerCol).Value = "Efectivo Inicial:";
+                worksheet.Cell(resumenStartRow, centerCol + 1).Value = totalInicial;
+                worksheet.Cell(resumenStartRow, centerCol).Style.Font.Bold = true;
+                resumenStartRow++;
+
+                worksheet.Cell(resumenStartRow, centerCol).Value = "Total en Caja:";
+                worksheet.Cell(resumenStartRow, centerCol + 1).Value = totalCaja;
+                worksheet.Cell(resumenStartRow, centerCol).Style.Font.Bold = true;
+                resumenStartRow++;
+
+                worksheet.Cell(resumenStartRow, centerCol).Value = "Efectivo Esperado:";
+                worksheet.Cell(resumenStartRow, centerCol + 1).Value = totalInicial + totalCaja;
+                worksheet.Cell(resumenStartRow, centerCol).Style.Font.Bold = true;
+                resumenStartRow++;
+
+                worksheet.Cell(resumenStartRow, centerCol).Value = "Efectivo Final:";
+                worksheet.Cell(resumenStartRow, centerCol + 1).Value = totalFinal;
+                worksheet.Cell(resumenStartRow, centerCol).Style.Font.Bold = true;
+                resumenStartRow++;
+
+                resumenStartRow++;
+                decimal diferencia = totalFinal - (totalInicial + totalCaja);
+
+                worksheet.Cell(resumenStartRow, centerCol).Value = "DIFERENCIA:";
+                worksheet.Cell(resumenStartRow, centerCol + 1).Value = diferencia;
+                worksheet.Cell(resumenStartRow, centerCol).Style.Font.Bold = true;
+                worksheet.Cell(resumenStartRow, centerCol).Style.Font.FontSize = 12;
+                worksheet.Cell(resumenStartRow, centerCol + 1).Style.Font.Bold = true;
+                worksheet.Cell(resumenStartRow, centerCol + 1).Style.Font.FontSize = 12;
+
+                // Color de la diferencia
+                if (diferencia == 0)
                 {
-                    usedRange.Style.Border.OutsideBorder = XLBorderStyleValues.Medium;
-                    usedRange.Style.Border.InsideBorder = XLBorderStyleValues.Thin;
+                    worksheet.Cell(resumenStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(46, 204, 113);
+                    worksheet.Cell(resumenStartRow, centerCol + 1).Value = $"{diferencia:C2} (CORRECTO)";
+                }
+                else if (diferencia > 0)
+                {
+                    worksheet.Cell(resumenStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(241, 196, 15);
+                    worksheet.Cell(resumenStartRow, centerCol + 1).Value = $"+{diferencia:C2} (SOBRANTE)";
+                }
+                else
+                {
+                    worksheet.Cell(resumenStartRow, centerCol + 1).Style.Font.FontColor = XLColor.FromArgb(231, 76, 60);
+                    worksheet.Cell(resumenStartRow, centerCol + 1).Value = $"{diferencia:C2} (FALTANTE)";
+                }
+
+                // ===== FORMATEO FINAL =====
+
+                // Formato de moneda para todas las celdas numéricas
+                var usedRange = worksheet.RangeUsed();
+                foreach (var cell in usedRange.CellsUsed())
+                {
+                    if (cell.Value.IsNumber)
+                    {
+                        cell.Style.NumberFormat.Format = "$#,##0.00";
+                    }
+                }
+
+                // Ajustar anchos de columnas
+                worksheet.Column("A").Width = 12;
+                worksheet.Column("B").Width = 10;
+                worksheet.Column("C").Width = 12;
+                worksheet.Column("D").Width = 25;
+                worksheet.Column("E").Width = 10;
+                worksheet.Column("F").Width = 12;
+
+                // Centrar contenido de columnas de cantidad
+                worksheet.Column("B").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+                worksheet.Column("E").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Center;
+
+                // Alinear a la derecha las columnas de dinero
+                worksheet.Column("C").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+                worksheet.Column("F").Style.Alignment.Horizontal = XLAlignmentHorizontalValues.Right;
+
+                // Pie de página - CORRECCIÓN DEL ERROR
+                var lastUsedRow = worksheet.LastRowUsed();
+                if (lastUsedRow != null)
+                {
+                    int lastRow = lastUsedRow.RowNumber() + 2;
+                    worksheet.Cell($"A{lastRow}").Value = $"Reporte generado el: {DateTime.Now:dd/MM/yyyy HH:mm}";
+                    worksheet.Cell($"A{lastRow}").Style.Font.Italic = true;
+                    worksheet.Cell($"A{lastRow}").Style.Font.FontColor = XLColor.Gray;
                 }
 
                 workbook.SaveAs(filePath);
             }
         }
-
-        // Métodos auxiliares para obtener datos de la base de datos
         private CorteData ObtenerDatosCorte(int corteId)
         {
             using (var connection = DatabaseHelper.GetConnection())
