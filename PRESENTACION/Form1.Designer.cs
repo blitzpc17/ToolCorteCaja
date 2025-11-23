@@ -980,6 +980,7 @@ namespace PRESENTACION
             this.dataGridViewHistorial.ColumnHeadersHeightSizeMode = System.Windows.Forms.DataGridViewColumnHeadersHeightSizeMode.AutoSize;
             this.dataGridViewHistorial.Location = new System.Drawing.Point(20, 60);
             this.dataGridViewHistorial.Name = "dataGridViewHistorial";
+            this.dataGridViewHistorial.SelectionMode = System.Windows.Forms.DataGridViewSelectionMode.FullRowSelect;
             this.dataGridViewHistorial.Size = new System.Drawing.Size(1150, 630);
             this.dataGridViewHistorial.TabIndex = 0;
             // 
