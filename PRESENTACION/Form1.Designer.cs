@@ -92,7 +92,7 @@
             this.tabCaptura = new System.Windows.Forms.TabPage();
             this.btnGuardarCorte = new System.Windows.Forms.Button();
             this.groupBoxDesglose = new System.Windows.Forms.GroupBox();
-            this.numericUpDown2 = new System.Windows.Forms.NumericUpDown();
+            this.numeric2 = new System.Windows.Forms.NumericUpDown();
             this.label18 = new System.Windows.Forms.Label();
             this.label17 = new System.Windows.Forms.Label();
             this.lblTotalEfectivo = new System.Windows.Forms.Label();
@@ -140,7 +140,7 @@
             this.tabControl.SuspendLayout();
             this.tabCaptura.SuspendLayout();
             this.groupBoxDesglose.SuspendLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numeric2)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numeric050)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numeric1)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.numeric5)).BeginInit();
@@ -188,8 +188,8 @@
             // 
             // tabControl
             // 
-            this.tabControl.Controls.Add(this.tabCaptura);
             this.tabControl.Controls.Add(this.tabHistorial);
+            this.tabControl.Controls.Add(this.tabCaptura);
             this.tabControl.Dock = System.Windows.Forms.DockStyle.Fill;
             this.tabControl.Location = new System.Drawing.Point(0, 60);
             this.tabControl.Name = "tabControl";
@@ -229,7 +229,7 @@
             // groupBoxDesglose
             // 
             this.groupBoxDesglose.BackColor = System.Drawing.Color.White;
-            this.groupBoxDesglose.Controls.Add(this.numericUpDown2);
+            this.groupBoxDesglose.Controls.Add(this.numeric2);
             this.groupBoxDesglose.Controls.Add(this.label18);
             this.groupBoxDesglose.Controls.Add(this.label17);
             this.groupBoxDesglose.Controls.Add(this.lblTotalEfectivo);
@@ -260,12 +260,12 @@
             this.groupBoxDesglose.TabStop = false;
             this.groupBoxDesglose.Text = "Desglose de Efectivo";
             // 
-            // numericUpDown2
+            // numeric2
             // 
-            this.numericUpDown2.Location = new System.Drawing.Point(282, 112);
-            this.numericUpDown2.Name = "numericUpDown2";
-            this.numericUpDown2.Size = new System.Drawing.Size(80, 25);
-            this.numericUpDown2.TabIndex = 21;
+            this.numeric2.Location = new System.Drawing.Point(282, 112);
+            this.numeric2.Name = "numeric2";
+            this.numeric2.Size = new System.Drawing.Size(80, 25);
+            this.numeric2.TabIndex = 21;
             // 
             // label18
             // 
@@ -648,6 +648,7 @@
             // 
             // dateTimePicker
             // 
+            this.dateTimePicker.Format = System.Windows.Forms.DateTimePickerFormat.Custom;
             this.dateTimePicker.Location = new System.Drawing.Point(20, 20);
             this.dateTimePicker.Name = "dateTimePicker";
             this.dateTimePicker.Size = new System.Drawing.Size(200, 25);
@@ -706,7 +707,7 @@
             this.tabCaptura.ResumeLayout(false);
             this.groupBoxDesglose.ResumeLayout(false);
             this.groupBoxDesglose.PerformLayout();
-            ((System.ComponentModel.ISupportInitialize)(this.numericUpDown2)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.numeric2)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numeric050)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numeric1)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.numeric5)).EndInit();
@@ -730,7 +731,7 @@
 
         #endregion
 
-        private System.Windows.Forms.NumericUpDown numericUpDown2;
+        private System.Windows.Forms.NumericUpDown numeric2;
         private System.Windows.Forms.Label label18;
         private System.Windows.Forms.Label label17;
     }

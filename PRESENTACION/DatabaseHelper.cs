@@ -28,7 +28,8 @@ public static class DatabaseHelper
                     Valor REAL,
                     TotalEntradas REAL,
                     TotalSalidas REAL,
-                    TotalCaja REAL
+                    TotalCaja REAL,
+                    TotalEfectivo REAL
                 );";
 
             string createDesgloseTable = @"
